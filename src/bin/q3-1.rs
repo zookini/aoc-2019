@@ -2,24 +2,22 @@ use aoc::*;
 use std::collections::HashSet;
 
 fn main() -> Result<()> {
-    let wires: Vec<_> = input("3.txt")?.iter().map(|s| cells(parse(s))).collect();
+    let wires: Vec<_> = input("3.txt")?.lines().map(|s| cells(parse(s))).collect();
     let crossed = wires[0].intersection(&wires[1]);
 
-    println!(
-        "Closest = {:?}",
+    Ok(println!(
+        "{:?}",
         crossed.map(|(x, y)| x.abs() + y.abs()).min()
-    );
-    Ok(())
+    ))
 }
 
-fn parse(directions: &str) -> Vec<(char, i32)> {
+fn parse<'a>(directions: &'a str) -> impl Iterator<Item = (char, i32)> + 'a {
     directions
         .split(",")
         .map(|s| (s.chars().nth(0).unwrap(), s[1..].parse().unwrap()))
-        .collect()
 }
 
-fn cells(directions: Vec<(char, i32)>) -> HashSet<(i32, i32)> {
+fn cells(directions: impl IntoIterator<Item = (char, i32)>) -> HashSet<(i32, i32)> {
     let mut cells = HashSet::new();
     let mut x = 0;
     let mut y = 0;
@@ -31,7 +29,7 @@ fn cells(directions: Vec<(char, i32)>) -> HashSet<(i32, i32)> {
                 'R' => x += 1,
                 'U' => y += 1,
                 'D' => y -= 1,
-                _ => panic!("Unknown direction {}", direction),
+                _ => unreachable!(),
             }
 
             cells.insert((x, y));

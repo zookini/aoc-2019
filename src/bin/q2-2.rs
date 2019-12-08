@@ -1,14 +1,14 @@
 use aoc::*;
 
 fn main() -> Result<()> {
-    let mem: Vec<usize> = input("2.txt")?[0]
+    let mem: Vec<usize> = input("2.txt")?
         .split(',')
         .map(|s| s.parse().unwrap())
         .collect();
 
     for noun in 0..100 {
         for verb in 0..100 {
-            if compute(mem.clone(), noun, verb) == 19_690_720 {
+            if compute(&mut mem.clone(), noun, verb) == 19_690_720 {
                 println!("noun = {}, verb = {}", noun, verb);
             }
         }
@@ -17,9 +17,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn compute(mem: Vec<usize>, noun: usize, verb: usize) -> usize {
+fn compute(mem: &mut [usize], noun: usize, verb: usize) -> usize {
     let mut ip = 0;
-    let mut mem = mem;
 
     mem[1] = noun;
     mem[2] = verb;
@@ -37,7 +36,7 @@ fn compute(mem: Vec<usize>, noun: usize, verb: usize) -> usize {
                 ip += 4;
             }
             99 => return mem[0],
-            op => panic!("Unknown Op Code {}", op),
+            _ => unreachable!(),
         }
     }
 }

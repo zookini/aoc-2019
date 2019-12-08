@@ -2,7 +2,7 @@ use aoc::*;
 
 fn main() -> Result<()> {
     let fuel: f64 = input("1.txt")?
-        .iter()
+        .lines()
         .map(|s| fuel(s.parse().unwrap()))
         .sum();
 

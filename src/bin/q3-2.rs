@@ -2,10 +2,10 @@ use aoc::*;
 use std::collections::HashMap;
 
 fn main() -> Result<()> {
-    let wires: Vec<_> = input("3.txt")?.iter().map(|s| cells(parse(s))).collect();
+    let wires: Vec<_> = input("3.txt")?.lines().map(|s| cells(parse(s))).collect();
 
     println!(
-        "Closest = {:?}",
+        "{:?}",
         wires[0]
             .iter()
             .filter_map(|(cell, steps)| wires[1].get(cell).map(|s| steps + s))
@@ -14,14 +14,13 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn parse(directions: &str) -> Vec<(char, i32)> {
+fn parse<'a>(directions: &'a str) -> impl Iterator<Item = (char, i32)> + 'a {
     directions
         .split(",")
         .map(|s| (s.chars().nth(0).unwrap(), s[1..].parse().unwrap()))
-        .collect()
 }
 
-fn cells(directions: Vec<(char, i32)>) -> HashMap<(i32, i32), i32> {
+fn cells(directions: impl IntoIterator<Item = (char, i32)>) -> HashMap<(i32, i32), i32> {
     let mut cells = HashMap::new();
     let mut steps = 0;
     let mut x = 0;
@@ -34,7 +33,7 @@ fn cells(directions: Vec<(char, i32)>) -> HashMap<(i32, i32), i32> {
                 'R' => x += 1,
                 'U' => y += 1,
                 'D' => y -= 1,
-                _ => panic!("Unknown direction {}", direction),
+                _ => unreachable!(),
             }
 
             steps += 1;

@@ -2,7 +2,7 @@ use aoc::*;
 
 fn main() -> Result<()> {
     let mut ip = 0;
-    let mut mem: Vec<usize> = input("2.txt")?[0]
+    let mut mem: Vec<usize> = input("2.txt")?
         .split(",")
         .map(|s| s.parse().unwrap())
         .collect();
@@ -23,9 +23,9 @@ fn main() -> Result<()> {
                 ip += 4;
             }
             99 => break,
-            op => panic!("Unknown Op Code {}", op),
+            _ => unreachable!(),
         }
     }
 
-    Ok(eprintln!("ip: {} mem: {:?}", ip, mem))
+    Ok(println!("ip: {} mem: {:?}", ip, mem))
 }

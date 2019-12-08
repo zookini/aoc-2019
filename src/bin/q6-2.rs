@@ -2,10 +2,10 @@ use aoc::*;
 use std::collections::HashMap;
 
 fn main() -> Result<()> {
-    let lines = input("6.txt")?;
+    let input = input("6.txt")?;
 
-    let universe: HashMap<_, _> = lines
-        .iter()
+    let universe: HashMap<_, _> = input
+        .lines()
         .map(|s| s.split(')').rev())
         .map(|mut p| (p.next().unwrap(), p.next().unwrap()))
         .collect();

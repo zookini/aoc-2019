@@ -2,10 +2,7 @@ fn main() {
     let start = 353_096;
     let end = 843_212;
 
-    println!(
-        "matches: {}",
-        (start..=end).filter(|&i| validate(i)).count()
-    )
+    println!("{}", (start..=end).filter(|&i| validate(i)).count())
 }
 
 fn validate(i: i32) -> bool {

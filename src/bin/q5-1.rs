@@ -13,7 +13,7 @@ struct Computer {
 impl Computer {
     fn load(filename: &str) -> Result<Self> {
         Ok(Computer {
-            mem: input(filename)?[0]
+            mem: input(filename)?
                 .split(',')
                 .map(|s| s.parse().unwrap())
                 .collect(),
@@ -56,7 +56,7 @@ impl Computer {
                     self.ip += 2;
                 }
                 99 => return Ok(()),
-                op => panic!("Unknown Op Code {}", op),
+                _ => unreachable!(),
             }
         }
     }
