@@ -3,22 +3,22 @@ use aoc::*;
 fn main() -> Result<()> {
     let fuel: f64 = input("1.txt")?
         .lines()
-        .map(|s| {
-            let mut c = fuel(s.parse().unwrap());
-            let mut total = c;
-
-            loop {
-                c = fuel(c);
-                if c > 0.0 {
-                    total += c;
-                } else {
-                    return total;
-                }
-            }
-        })
+        .map(|s| cumulative_fuel(s.parse().unwrap()))
         .sum();
 
     Ok(println!("{}", fuel))
+}
+
+fn cumulative_fuel(mass: f64) -> f64 {
+    let mut c = fuel(mass);
+    let mut total = 0.0;
+
+    while c > 0.0 {
+        total += c;
+        c = fuel(c);
+    }
+
+    total
 }
 
 fn fuel(mass: f64) -> f64 {
