@@ -4,14 +4,12 @@ use std::collections::HashMap;
 fn main() -> Result<()> {
     let wires: Vec<_> = input("3.txt")?.lines().map(|s| cells(parse(s))).collect();
 
-    println!(
-        "{:?}",
-        wires[0]
-            .iter()
-            .filter_map(|(cell, steps)| wires[1].get(cell).map(|s| steps + s))
-            .min()
-    );
-    Ok(())
+    let crossed = wires[0]
+        .iter()
+        .filter_map(|(cell, steps)| wires[1].get(cell).map(|steps2| steps + steps2))
+        .min();
+
+    Ok(println!("{:?}", crossed))
 }
 
 fn parse<'a>(directions: &'a str) -> impl Iterator<Item = (char, i32)> + 'a {
@@ -20,7 +18,7 @@ fn parse<'a>(directions: &'a str) -> impl Iterator<Item = (char, i32)> + 'a {
         .map(|s| (s.chars().nth(0).unwrap(), s[1..].parse().unwrap()))
 }
 
-fn cells(directions: impl IntoIterator<Item = (char, i32)>) -> HashMap<(i32, i32), i32> {
+fn cells(directions: impl Iterator<Item = (char, i32)>) -> HashMap<(i32, i32), i32> {
     let mut cells = HashMap::new();
     let mut steps = 0;
     let mut x = 0;

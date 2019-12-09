@@ -17,14 +17,10 @@ fn main() -> Result<()> {
     Ok(println!("{:?}", you.len() - shared + san.len() - shared))
 }
 
-fn ancestors<'a>(universe: &HashMap<&'a str, &'a str>, object: &str) -> Vec<&'a str> {
-    let mut ancestors = vec![];
-    let mut child = object;
-
-    while let Some(parent) = universe.get(child) {
-        ancestors.push(*parent);
-        child = parent;
-    }
+fn ancestors<'a>(universe: &HashMap<&'a str, &'a str>, object: &'a str) -> Vec<&'a str> {
+    let mut ancestors: Vec<_> = std::iter::successors(universe.get(object), |&o| universe.get(o))
+        .copied()
+        .collect();
 
     ancestors.reverse();
     ancestors

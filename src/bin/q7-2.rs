@@ -10,23 +10,17 @@ fn main() -> Result<()> {
 
 fn amplify(image: &Computer, phases: &[i32]) -> i32 {
     let mut amplifiers: Vec<_> = phases.iter().map(|_| image.clone()).collect();
-    let mut input = 0;
 
-    for (phase, amplifier) in phases.iter().zip(&mut amplifiers) {
-        if let Some(output) = amplifier.run(&[*phase, input]) {
-            input = output;
-        }
-    }
+    let init = phases
+        .iter()
+        .zip(&mut amplifiers)
+        .fold(0, |input, (p, a)| a.run(&[*p, input]).unwrap());
 
-    for i in (0..amplifiers.len()).cycle() {
-        if let Some(output) = amplifiers[i].run(&[input]) {
-            input = output;
-        } else {
-            return amplifiers.last().unwrap().output;
-        }
-    }
+    (0..amplifiers.len())
+        .cycle()
+        .try_fold(init, |input, i| amplifiers[i].run(&[input]));
 
-    unreachable!()
+    amplifiers.last().unwrap().output
 }
 
 #[derive(Clone)]

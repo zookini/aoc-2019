@@ -5,10 +5,8 @@ fn main() -> Result<()> {
     let wires: Vec<_> = input("3.txt")?.lines().map(|s| cells(parse(s))).collect();
     let crossed = wires[0].intersection(&wires[1]);
 
-    Ok(println!(
-        "{:?}",
-        crossed.map(|(x, y)| x.abs() + y.abs()).min()
-    ))
+    println!("{:?}", crossed.map(|(x, y)| x.abs() + y.abs()).min());
+    Ok(())
 }
 
 fn parse<'a>(directions: &'a str) -> impl Iterator<Item = (char, i32)> + 'a {
@@ -17,7 +15,7 @@ fn parse<'a>(directions: &'a str) -> impl Iterator<Item = (char, i32)> + 'a {
         .map(|s| (s.chars().nth(0).unwrap(), s[1..].parse().unwrap()))
 }
 
-fn cells(directions: impl IntoIterator<Item = (char, i32)>) -> HashSet<(i32, i32)> {
+fn cells(directions: impl Iterator<Item = (char, i32)>) -> HashSet<(i32, i32)> {
     let mut cells = HashSet::new();
     let mut x = 0;
     let mut y = 0;
