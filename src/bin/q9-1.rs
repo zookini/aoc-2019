@@ -27,57 +27,39 @@ impl Computer {
         })
     }
 
+    const OP_SIZE: &'static [usize] = &[0, 4, 4, 2, 2, 3, 3, 4, 4, 2];
+
     fn run(&mut self, input: &[i64]) -> Option<i64> {
         let mut input = input.iter();
 
         loop {
-            match self.mem[self.ip] % 100 {
-                1 => {
-                    *self.at(3) = *self.at(1) + *self.at(2);
-                    self.ip += 4;
-                }
-                2 => {
-                    *self.at(3) = *self.at(1) * *self.at(2);
-                    self.ip += 4;
-                }
-                3 => {
-                    *self.at(1) = *input.next().unwrap();
-                    self.ip += 2;
-                }
-                4 => {
-                    let output = *self.at(1);
-                    self.ip += 2;
-                    return Some(output);
-                }
+            let op = (self.mem[self.ip] % 100) as usize;
+
+            match op {
+                1 => *self.at(3) = *self.at(1) + *self.at(2),
+                2 => *self.at(3) = *self.at(1) * *self.at(2),
+                3 => *self.at(1) = *input.next().unwrap(),
+                4 => return Some(*self.at(1)),
                 5 => {
-                    self.ip = if *self.at(1) != 0 {
-                        *self.at(2) as usize
-                    } else {
-                        self.ip + 3
+                    if *self.at(1) != 0 {
+                        self.ip = *self.at(2) as usize;
+                        continue;
                     }
                 }
                 6 => {
-                    self.ip = if *self.at(1) == 0 {
-                        *self.at(2) as usize
-                    } else {
-                        self.ip + 3
+                    if *self.at(1) == 0 {
+                        self.ip = *self.at(2) as usize;
+                        continue;
                     }
                 }
-                7 => {
-                    *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 };
-                    self.ip += 4;
-                }
-                8 => {
-                    *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 };
-                    self.ip += 4;
-                }
-                9 => {
-                    self.base = (self.base as i64 + *self.at(1)) as usize;
-                    self.ip += 2;
-                }
+                7 => *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 },
+                8 => *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 },
+                9 => self.base = (self.base as i64 + *self.at(1)) as usize,
                 99 => return None,
                 _ => unreachable!(),
             }
+
+            self.ip += Self::OP_SIZE[op];
         }
     }
 
