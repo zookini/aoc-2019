@@ -2,40 +2,35 @@ use aoc::*;
 use std::collections::BTreeSet;
 
 fn main() -> Result<()> {
-    let input = input("10.txt")?;
-    let map: Vec<_> = input.lines().map(&str::as_bytes).collect();
-    let mut best = ((0, 0), 0);
+    let asteroids: Vec<_> = input("10.txt")?
+        .lines()
+        .enumerate()
+        .flat_map(|(y, line)| {
+            line.chars()
+                .enumerate()
+                .filter(|(_, ch)| *ch == '#')
+                .map(move |(x, _)| (x as isize, y as isize))
+        })
+        .collect();
 
-    for y in 0..map.len() {
-        for x in 0..map[y].len() {
-            if map[y][x] == b'#' {
-                let visible = angles(&map, x, y).len();
-                if visible > best.1 {
-                    best = ((x, y), visible);
-                }
-            }
-        }
-    }
+    let best = asteroids
+        .iter()
+        .map(|&p| (p, angles(&asteroids, p).len()))
+        .max_by_key(|(_, visible)| *visible);
 
     Ok(println!("{:?}", best))
 }
 
-fn angles(map: &[&[u8]], x: usize, y: usize) -> BTreeSet<isize> {
-    let mut angles: BTreeSet<isize> = BTreeSet::new();
+type Point = (isize, isize);
 
-    for y2 in 0..map.len() {
-        for x2 in 0..map[y].len() {
-            if map[y2][x2] == b'#' && !(y == y2 && x == x2) {
-                angles.insert(
-                    (angle(x as isize - x2 as isize, y as isize - y2 as isize) * 10.0) as isize,
-                );
-            }
-        }
-    }
-
-    angles
+fn angles(asteroids: &[Point], (x, y): Point) -> BTreeSet<isize> {
+    asteroids
+        .iter()
+        .filter(|&&(x2, y2)| !(x == x2 && y == y2))
+        .map(|&(x2, y2)| (angle((x - x2, y - y2)) * 10.0) as isize)
+        .collect()
 }
 
-fn angle(x: isize, y: isize) -> f64 {
+fn angle((x, y): Point) -> f64 {
     (y as f64).atan2(x as f64).to_degrees()
 }
