@@ -7,28 +7,25 @@ fn main() -> Result<()> {
     let mut facing = 0;
     let mut painted = HashMap::new();
 
-    while let Some(colour) = computer.run(&[*painted.get(&position).unwrap_or(&0)]) {
+    while let (Some(colour), Some(direction)) = (
+        computer.run(&[*painted.get(&position).unwrap_or(&0)]),
+        computer.run(&[]),
+    ) {
         painted.insert(position, colour);
-
-        match computer.run(&[]) {
-            Some(direction) => {
-                facing = turn(facing, direction);
-                position = step(position, facing);
-            }
-            _ => break,
-        }
+        facing = turn(facing, direction);
+        position = step(position, facing);
     }
 
     Ok(println!("{}", painted.len()))
 }
 
-type Point = (isize, isize);
+type Point = (i8, i8);
 
-fn turn(facing: i64, input: i64) -> i64 {
+fn turn(facing: u16, input: i64) -> u16 {
     (facing + if input == 0 { 270 } else { 90 }) % 360
 }
 
-fn step((x, y): Point, direction: i64) -> Point {
+fn step((x, y): Point, direction: u16) -> Point {
     match direction {
         0 => (x, y - 1),
         90 => (x + 1, y),

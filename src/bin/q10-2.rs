@@ -9,7 +9,7 @@ fn main() -> Result<()> {
             line.chars()
                 .enumerate()
                 .filter(|(_, ch)| *ch == '#')
-                .map(move |(x, _)| (x as isize, y as isize))
+                .map(move |(x, _)| (x as i8, y as i8))
         })
         .collect();
 
@@ -27,17 +27,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-type Point = (isize, isize);
+type Point = (i8, i8);
 
-fn angles(asteroids: &[Point], (x, y): Point) -> BTreeMap<isize, Vec<Point>> {
-    let mut angles: BTreeMap<isize, Vec<Point>> = BTreeMap::new();
+fn angles(asteroids: &[Point], from: Point) -> BTreeMap<u16, Vec<Point>> {
+    let mut angles: BTreeMap<u16, Vec<Point>> = BTreeMap::new();
 
-    for &(x2, y2) in asteroids {
-        if !(y == y2 && x == x2) {
+    for &to in asteroids {
+        if from != to {
             angles
-                .entry((angle((x2 - x, y2 - y)) * 10.0) as isize)
-                .and_modify(|v| v.push((x2, y2)))
-                .or_insert(vec![(x2, y2)]);
+                .entry((angle((to.0 - from.0, to.1 - from.1)) * 10.0) as u16)
+                .and_modify(|v| v.push(to))
+                .or_insert(vec![to]);
         }
     }
 

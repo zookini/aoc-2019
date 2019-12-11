@@ -9,7 +9,7 @@ fn main() -> Result<()> {
             line.chars()
                 .enumerate()
                 .filter(|(_, ch)| *ch == '#')
-                .map(move |(x, _)| (x as isize, y as isize))
+                .map(move |(x, _)| (x as i8, y as i8))
         })
         .collect();
 
@@ -21,13 +21,13 @@ fn main() -> Result<()> {
     Ok(println!("{:?}", best))
 }
 
-type Point = (isize, isize);
+type Point = (i8, i8);
 
-fn angles(asteroids: &[Point], (x, y): Point) -> BTreeSet<isize> {
+fn angles(asteroids: &[Point], (x, y): Point) -> BTreeSet<i16> {
     asteroids
         .iter()
-        .filter(|&&(x2, y2)| !(x == x2 && y == y2))
-        .map(|&(x2, y2)| (angle((x - x2, y - y2)) * 10.0) as isize)
+        .filter(|&&to| (x, y) != to)
+        .map(|&(x2, y2)| (angle((x - x2, y - y2)) * 10.0) as i16)
         .collect()
 }
 

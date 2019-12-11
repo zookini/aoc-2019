@@ -22,7 +22,7 @@ fn collapse<'a>(layers: impl Iterator<Item = &'a [u8]>) -> Vec<u8> {
     })
 }
 
-fn draw(image: &Vec<u8>) {
+fn draw(image: &[u8]) {
     for row in image.chunks(WIDTH) {
         println!("{}", std::str::from_utf8(row).unwrap().replace('0', " "));
     }

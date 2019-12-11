@@ -1,70 +1,47 @@
 use aoc::*;
-use std::collections::HashMap;
 
 fn main() -> Result<()> {
     let mut computer = Computer::load("11.txt")?;
     let mut position = (0, 0);
     let mut facing = 0;
-    let mut painted = HashMap::new();
+    let mut canvas = vec![vec![0; 50]; 6];
 
-    painted.insert(position, 1);
+    canvas[0][0] = 1;
 
-    while let Some(colour) = computer.run(&[*painted.get(&position).unwrap_or(&0)]) {
-        painted.insert(position, colour);
-
-        match computer.run(&[]) {
-            Some(direction) => {
-                facing = turn(facing, direction);
-                position = step(position, facing);
-            }
-            _ => break,
-        }
+    while let (Some(colour), Some(direction)) = (
+        computer.run(&[canvas[position.1 as usize][position.0 as usize]]),
+        computer.run(&[]),
+    ) {
+        canvas[position.1 as usize][position.0 as usize] = colour;
+        facing = turn(facing, direction);
+        position = step(position, facing);
     }
 
-    Ok(draw(&painted))
+    for row in canvas {
+        let line = row
+            .iter()
+            .map(|&i| if i == 1 { '#' } else { ' ' })
+            .collect::<String>();
+
+        println!("{}", line);
+    }
+
+    Ok(())
 }
 
-type Point = (isize, isize);
+type Point = (i8, i8);
 
-fn turn(facing: i64, input: i64) -> i64 {
+fn turn(facing: u16, input: i64) -> u16 {
     (facing + if input == 0 { 270 } else { 90 }) % 360
 }
 
-fn step((x, y): Point, direction: i64) -> Point {
+fn step((x, y): Point, direction: u16) -> Point {
     match direction {
         0 => (x, y - 1),
         90 => (x + 1, y),
         180 => (x, y + 1),
         270 => (x - 1, y),
         _ => unreachable!(),
-    }
-}
-
-fn draw(painted: &HashMap<Point, i64>) {
-    let whites: Vec<_> = painted
-        .iter()
-        .filter(|(_, c)| **c == 1)
-        .map(|(p, _)| *p)
-        .collect();
-
-    let min = whites
-        .iter()
-        .fold(whites[0], |a, b| (a.0.min(b.0), a.1.min(b.1)));
-
-    let whites: Vec<_> = whites.iter().map(|(x, y)| (x - min.0, y - min.1)).collect();
-
-    let max = whites
-        .iter()
-        .fold(whites[0], |a, b| (a.0.max(b.0), a.1.max(b.1)));
-
-    let mut canvas = vec![vec![b' '; max.0 as usize + 1]; max.1 as usize + 1];
-
-    for (x, y) in whites {
-        canvas[y as usize][x as usize] = b'#';
-    }
-
-    for row in canvas {
-        println!("{}", std::str::from_utf8(&row).unwrap());
     }
 }
 
