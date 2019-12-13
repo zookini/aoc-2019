@@ -1,23 +1,26 @@
 use itertools::{izip, Itertools};
 
 fn main() {
-    let input = [[17, -2, 7, 1], [5, -8, -6, -10], [1, 8, 14, 4]];
-    let mut positions = input;
-    let mut velocities = [[0; 4]; 3];
-    let mut orbits = [0; 3];
+    let x = orbit(&[17, -2, 7, 1]);
+    let y = orbit(&[5, -8, -6, -10]);
+    let z = orbit(&[1, 8, 14, 4]);
 
-    for dimension in 0..input.len() {
-        for steps in 1.. {
-            step(&mut positions[dimension], &mut velocities[dimension]);
+    println!("{}", lcm(x, lcm(y, z)));
+}
 
-            if positions[dimension] == input[dimension] {
-                orbits[dimension] = steps + 1;
-                break;
-            }
+fn orbit(start: &[i64; 4]) -> i64 {
+    let mut positions = *start;
+    let mut velocities = [0; 4];
+
+    for steps in 1.. {
+        step(&mut positions, &mut velocities);
+
+        if positions == *start {
+            return steps + 1;
         }
     }
 
-    println!("{}", lcm(lcm(orbits[0], orbits[1]), orbits[2]));
+    unreachable!()
 }
 
 fn step(positions: &mut [i64], velocities: &mut [i64]) {

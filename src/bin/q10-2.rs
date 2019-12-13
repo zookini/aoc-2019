@@ -37,7 +37,7 @@ fn angles(asteroids: &[Point], from: Point) -> BTreeMap<u16, Vec<Point>> {
             angles
                 .entry((angle((to.0 - from.0, to.1 - from.1)) * 10.0) as u16)
                 .and_modify(|v| v.push(to))
-                .or_insert(vec![to]);
+                .or_insert_with(|| vec![to]);
         }
     }
 
