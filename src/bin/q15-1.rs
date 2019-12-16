@@ -78,15 +78,15 @@ struct Point {
 
 impl Point {
     fn new(x: usize, y: usize) -> Point {
-        Point { x, y }
+        Self { x, y }
     }
 
     fn direction(&self, direction: i64) -> Point {
         match direction {
-            1 => Point::new(self.x, self.y - 1),
-            2 => Point::new(self.x, self.y + 1),
-            3 => Point::new(self.x - 1, self.y),
-            4 => Point::new(self.x + 1, self.y),
+            1 => Self::new(self.x, self.y - 1),
+            2 => Self::new(self.x, self.y + 1),
+            3 => Self::new(self.x - 1, self.y),
+            4 => Self::new(self.x + 1, self.y),
             _ => unreachable!(),
         }
     }

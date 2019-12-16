@@ -17,16 +17,13 @@ fn main() -> Result<()> {
 
     while low < high - 1 {
         let mut state = HashMap::new();
-        let fuel = low + (high - low) / 2;
+        let fuel = (low + high) / 2;
+
         cost(&reactions, &mut state, &Chemical::new("FUEL", fuel));
 
         match state["ORE"].cmp(&10u64.pow(12)) {
-            Ordering::Less => low = fuel,
             Ordering::Greater => high = fuel,
-            Ordering::Equal => {
-                low = fuel;
-                break;
-            }
+            _ => low = fuel,
         }
     }
 
@@ -52,12 +49,8 @@ fn cost(
         *count += n * min;
         *count -= chemical.units;
 
-        for input in &reactions[chemical.name].inputs {
-            cost(
-                reactions,
-                state,
-                &Chemical::new(input.name, n * input.units),
-            );
+        for i in &reactions[chemical.name].inputs {
+            cost(reactions, state, &Chemical::new(i.name, n * i.units));
         }
     }
 }

@@ -36,12 +36,8 @@ fn cost(
         *count += n * min;
         *count -= chemical.units;
 
-        for input in &reactions[chemical.name].inputs {
-            cost(
-                reactions,
-                state,
-                &Chemical::new(input.name, n * input.units),
-            );
+        for i in &reactions[chemical.name].inputs {
+            cost(reactions, state, &Chemical::new(i.name, n * i.units));
         }
     }
 }
