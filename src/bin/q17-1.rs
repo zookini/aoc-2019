@@ -16,11 +16,9 @@ fn main() -> Result<()> {
 fn alignments(map: &[&[u8]]) -> usize {
     iproduct!(1..(map[0].len() - 1), 1..(map.len() - 2))
         .filter(|&(x, y)| {
-            map[y][x] == b'#'
-                && map[y - 1][x] == b'#'
-                && map[y][x + 1] == b'#'
-                && map[y + 1][x] == b'#'
-                && map[y][x - 1] == b'#'
+            [(x, y), (x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
+                .iter()
+                .all(|&(x, y)| map[y][x] == b'#')
         })
         .map(|(x, y)| x * y)
         .sum()

@@ -6,8 +6,7 @@ fn main() -> Result<()> {
     let mut computer = Computer::load("17.txt")?;
     computer.mem[0] = 2;
 
-    let map: Vec<_> = iter::from_fn(|| Some(computer.line(&[])).filter(|s| s.len() > 0)).collect();
-
+    let map: Vec<_> = computer.lines();
     println!("{}\n", map.join("\n"));
 
     let map: Vec<_> = map.iter().map(|line| line.as_bytes()).collect();
@@ -29,7 +28,7 @@ fn main() -> Result<()> {
         println!("{}", computer.line(&ascii(input)));
     }
 
-    let map: Vec<_> = iter::from_fn(|| Some(computer.line(&[])).filter(|s| s.len() > 0)).collect();
+    let map: Vec<_> = computer.lines();
 
     println!("{}\n", map.join("\n"));
     println!("{:?}", computer.run(&[]));
@@ -38,9 +37,7 @@ fn main() -> Result<()> {
 }
 
 fn ascii(s: &str) -> Vec<i64> {
-    let mut c: Vec<_> = s.bytes().map(|b| b as i64).collect();
-    c.push(10);
-    c
+    s.bytes().map(|b| b as i64).chain(iter::once(10)).collect()
 }
 
 #[derive(Debug)]
@@ -126,6 +123,10 @@ impl Computer {
             mem,
             ip: 0,
         })
+    }
+
+    fn lines(&mut self) -> Vec<String> {
+        iter::from_fn(|| Some(self.line(&[])).filter(|s| s.len() > 0)).collect()
     }
 
     fn line(&mut self, input: &[i64]) -> String {

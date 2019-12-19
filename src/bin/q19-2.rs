@@ -5,6 +5,7 @@ const SIZE: i64 = 100;
 fn main() -> Result<()> {
     let vm = Computer::load("19.txt")?;
     let scan = |x, y| vm.clone().run(&[x, y]).unwrap() == 1;
+
     let mut left = 0;
     let mut bottom = SIZE - 1;
 
