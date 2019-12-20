@@ -126,7 +126,7 @@ impl Computer {
     }
 
     fn lines(&mut self) -> Vec<String> {
-        iter::from_fn(|| Some(self.line(&[])).filter(|s| s.len() > 0)).collect()
+        iter::from_fn(|| Some(self.line(&[])).filter(|s| !s.is_empty())).collect()
     }
 
     fn line(&mut self, input: &[i64]) -> String {

@@ -13,22 +13,22 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    let best = asteroids.iter().map(|p| angles(p, &asteroids).len()).max();
+    let best = asteroids.iter().map(|&p| angles(p, &asteroids).len()).max();
 
     Ok(println!("{:?}", best))
 }
 
 type Point = (i8, i8);
 
-fn angles(from: &Point, asteroids: &[Point]) -> BTreeSet<i16> {
+fn angles(from: Point, asteroids: &[Point]) -> BTreeSet<i16> {
     asteroids
         .iter()
-        .filter(|&to| from != to)
-        .map(|to| (angle(&from, &to) * 10.0) as i16)
+        .filter(|&&to| from != to)
+        .map(|&to| (angle(from, to) * 10.0) as i16)
         .collect()
 }
 
-fn angle(from: &Point, to: &Point) -> f64 {
+fn angle(from: Point, to: Point) -> f64 {
     let relative = (from.0 - to.0, from.1 - to.1);
     (relative.1 as f64).atan2(relative.0 as f64).to_degrees()
 }

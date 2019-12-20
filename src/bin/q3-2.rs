@@ -14,7 +14,7 @@ fn main() -> Result<()> {
 
 fn parse<'a>(directions: &'a str) -> impl Iterator<Item = (char, i32)> + 'a {
     directions
-        .split(",")
+        .split(',')
         .map(|s| (s.chars().nth(0).unwrap(), s[1..].parse().unwrap()))
 }
 

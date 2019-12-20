@@ -3,7 +3,7 @@ use aoc::*;
 fn main() -> Result<()> {
     let mut ip = 0;
     let mut mem: Vec<usize> = input("2.txt")?
-        .split(",")
+        .split(',')
         .map(|s| s.parse().unwrap())
         .collect();
 
