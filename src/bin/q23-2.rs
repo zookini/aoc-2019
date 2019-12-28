@@ -1,152 +1,157 @@
 use aoc::*;
-use std::collections::{HashMap, VecDeque};
+use futures::prelude::*;
+use std::collections::HashMap;
+use std::time::{self, Duration};
+use tokio;
+use tokio::sync::mpsc::{self, Receiver, Sender};
 
-fn main() -> Result<()> {
-    let image = Computer::load("23.txt")?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    let image = Computer::parse("23.txt")?;
 
-    let mut nics: Vec<_> = (0..50)
-        .map(|i| {
-            let mut nic = image.clone();
-            nic.input.push_back(i);
-            nic
+    let (nics, mut io): (Vec<_>, Vec<_>) = (0..50)
+        .map(|_| {
+            let (input, output) = (mpsc::channel(10), mpsc::channel(3));
+            let nic = Computer::new(image.clone(), input.1, output.0);
+
+            (nic, (output.1, input.0))
         })
-        .collect();
+        .unzip();
 
-    let mut nat = None;
+    for (i, mut nic) in nics.into_iter().enumerate() {
+        io[i].1.send(i as i64).await.unwrap();
+
+        tokio::spawn(async move {
+            nic.run().await.unwrap();
+        });
+    }
+
+    Ok(println!("{}", router(io).await?))
+}
+
+async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
+    let mut nat: Option<(i64, i64)> = None;
+    let mut buffers = vec![vec![]; io.len()];
     let mut counts: HashMap<i64, u8> = HashMap::new();
+    let (mut inputs, mut outputs): (Vec<_>, Vec<_>) = io.into_iter().unzip();
 
     loop {
-        if let Some(y) = step(&mut nics, &mut nat) {
-            let count = counts.entry(y).or_insert(1);
-            if *count >= 2 {
-                return Ok(println!("Found duplicate {:?}", y));
-            } else {
-                *count += 1;
-            }
-        }
-    }
-}
+        let selects = future::select_all(inputs.iter_mut().map(|input| Box::pin(input.recv())));
 
-fn step(nics: &mut [Computer], nat: &mut Option<Packet>) -> Option<i64> {
-    for i in 0..nics.len() {
-        if let State::Output(destination) = nics[i].step() {
-            if let (Some(x), Some(y)) = (nics[i].run(), nics[i].run()) {
-                let destination = destination as usize;
+        match tokio::time::timeout(Duration::from_millis(5), selects).await {
+            Ok((Some(output), index, _)) => {
+                let buffer = &mut buffers[index];
 
-                if destination < nics.len() {
-                    nics[destination].send((x, y));
-                } else if destination == 255 {
-                    *nat = Some((x, y));
+                buffer.push(output);
+
+                if buffer.len() != 3 {
+                    continue;
+                }
+
+                let destination = buffer[0];
+                let packet = (buffer[1], buffer[2]);
+
+                buffer.clear();
+                println!("Received packet {:?} for {}", packet, destination);
+
+                if destination == 255 {
+                    nat = Some(packet);
+                } else {
+                    let output = &mut outputs[destination as usize];
+                    output.send(packet.0).await?;
+                    output.send(packet.1).await?;
                 }
             }
+            Err(_) => {
+                if let Some((x, y)) = nat {
+                    let count = counts.entry(y).or_insert(1);
+                    if *count >= 2 {
+                        return Ok(y);
+                    } else {
+                        *count += 1;
+
+                        outputs[0].send(x).await?;
+                        outputs[0].send(y).await?;
+                    }
+                }
+            }
+            _ => (),
         }
     }
-
-    if nics.iter().all(|nic| nic.waiting && nic.input.is_empty()) {
-        if let Some((x, y)) = nat {
-            println!("Send wake up ({}, {}) from NAT to 0", x, y);
-            nics[0].send((*x, *y));
-            return Some(*y);
-        }
-    }
-
-    None
 }
 
-type Packet = (i64, i64);
-
-#[derive(Clone)]
 struct Computer {
     base: usize,
     mem: Vec<i64>,
     ip: usize,
-    input: VecDeque<i64>,
-    waiting: bool,
+    input: Receiver<i64>,
+    output: Sender<i64>,
 }
 
 impl Computer {
-    fn load(filename: &str) -> Result<Self> {
-        let mut mem: Vec<i64> = input(filename)?
-            .split(',')
-            .map(|s| s.parse().unwrap())
-            .collect();
-
+    fn new(mut mem: Vec<i64>, input: Receiver<i64>, output: Sender<i64>) -> Self {
         mem.resize(10 * 1024, 0);
 
-        Ok(Computer {
+        Self {
             base: 0,
             mem,
             ip: 0,
-            input: VecDeque::new(),
-            waiting: false,
-        })
-    }
-
-    fn send(&mut self, (x, y): Packet) {
-        self.input.push_back(x);
-        self.input.push_back(y);
-    }
-
-    fn run(&mut self) -> Option<i64> {
-        loop {
-            match self.step() {
-                State::Output(output) => return Some(output),
-                State::Complete => return None,
-                _ => (),
-            }
+            input,
+            output,
         }
+    }
+
+    fn parse(filename: &str) -> Result<Vec<i64>> {
+        Ok(input(filename)?
+            .split(',')
+            .map(|s| s.parse().unwrap())
+            .collect())
     }
 
     const OP_SIZE: &'static [usize] = &[0, 4, 4, 2, 2, 3, 3, 4, 4, 2];
 
-    fn step(&mut self) -> State {
-        let op = (self.mem[self.ip] % 100) as usize;
+    async fn run(&mut self) -> Result<()> {
+        loop {
+            let op = (self.mem[self.ip] % 100) as usize;
 
-        match op {
-            1 => *self.at(3) = *self.at(1) + *self.at(2),
-            2 => *self.at(3) = *self.at(1) * *self.at(2),
-            3 => {
-                match self.input.pop_front() {
-                    Some(input) => {
+            match op {
+                1 => *self.at(3) = *self.at(1) + *self.at(2),
+                2 => *self.at(3) = *self.at(1) * *self.at(2),
+                3 => match self.input.try_recv() {
+                    Ok(input) => {
                         *self.at(1) = input;
-                        self.waiting = false;
                     }
-                    None => {
+                    Err(mpsc::error::TryRecvError::Empty) => {
                         *self.at(1) = -1;
-                        self.waiting = true;
+                        tokio::time::delay_for(time::Duration::from_millis(1)).await;
+                    }
+                    Err(e) => return Err(e.into()),
+                },
+                4 => {
+                    let output = *self.at(1);
+                    self.output.send(output).await?;
+                }
+                5 => {
+                    if *self.at(1) != 0 {
+                        self.ip = *self.at(2) as usize;
+                        continue;
                     }
                 }
+                6 => {
+                    if *self.at(1) == 0 {
+                        self.ip = *self.at(2) as usize;
+                        continue;
+                    }
+                }
+                7 => *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 },
+                8 => *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 },
+                9 => self.base = (self.base as i64 + *self.at(1)) as usize,
+                99 => return Ok(()),
+                _ => unreachable!(),
+            }
 
-                self.ip += Self::OP_SIZE[op];
-                return State::Input;
-            }
-            4 => {
-                let output = *self.at(1);
-                self.waiting = false;
-                self.ip += Self::OP_SIZE[op];
-                return State::Output(output);
-            }
-            5 => {
-                if *self.at(1) != 0 {
-                    self.ip = *self.at(2) as usize;
-                    return State::Continue;
-                }
-            }
-            6 => {
-                if *self.at(1) == 0 {
-                    self.ip = *self.at(2) as usize;
-                    return State::Continue;
-                }
-            }
-            7 => *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 },
-            8 => *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 },
-            9 => self.base = (self.base as i64 + *self.at(1)) as usize,
-            99 => return State::Complete,
-            _ => unreachable!(),
+            self.ip += Self::OP_SIZE[op];
         }
-
-        self.ip += Self::OP_SIZE[op];
-        State::Continue
     }
 
     fn at(&mut self, parameter: usize) -> &mut i64 {
@@ -162,12 +167,4 @@ impl Computer {
 
         &mut self.mem[address]
     }
-}
-
-#[derive(Eq, PartialEq)]
-enum State {
-    Continue,
-    Input,
-    Output(i64),
-    Complete,
 }
