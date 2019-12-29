@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
         rio[i].1.send(i as i64).await?;
 
         tokio::spawn(async move {
-            computer.run(input, output).await.unwrap();
+            computer.interact(input, output).await.unwrap();
         });
     }
 

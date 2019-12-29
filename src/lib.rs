@@ -43,7 +43,13 @@ impl Computer {
 
     const OP_SIZE: &'static [usize] = &[0, 4, 4, 2, 2, 3, 3, 4, 4, 2];
 
-    pub async fn run<I, O, E>(&mut self, mut input: I, mut output: O) -> Result<O>
+    pub fn run(&mut self, input: impl IntoIterator<Item = i64>) -> Result<Vec<i64>> {
+        let mut output = vec![];
+        futures::executor::block_on(self.interact(stream::iter(input), &mut output))?;
+        Ok(output)
+    }
+
+    pub async fn interact<I, O, E>(&mut self, mut input: I, mut output: O) -> Result<()>
     where
         I: Stream<Item = i64> + Unpin,
         O: Sink<i64, Error = E> + Unpin,
@@ -72,7 +78,7 @@ impl Computer {
                 7 => *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 },
                 8 => *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 },
                 9 => self.base = (self.base as i64 + *self.at(1)) as usize,
-                99 => return Ok(output),
+                99 => return Ok(()),
                 _ => unreachable!(),
             }
 
