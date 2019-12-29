@@ -1,9 +1,9 @@
 use aoc::*;
+use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::prelude::*;
 use std::collections::HashMap;
 use std::time::{self, Duration};
 use tokio;
-use tokio::sync::mpsc::{self, Receiver, Sender};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
 async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
     let (inputs, mut outputs): (Vec<_>, Vec<_>) = io
         .into_iter()
-        .map(|(i, o)| (Box::pin(messages(i)), o))
+        .map(|(i, o)| (i.chunks(3).map(|v| (v[0], (v[1], v[2]))), o))
         .unzip();
 
     let mut inputs = stream::select_all(inputs);
@@ -68,17 +68,6 @@ async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
             _ => (),
         }
     }
-}
-
-fn messages(rx: Receiver<i64>) -> impl Stream<Item = (i64, (i64, i64))> {
-    stream::unfold(rx, |mut rx| {
-        async {
-            match (rx.recv().await, rx.recv().await, rx.recv().await) {
-                (Some(destination), Some(x), Some(y)) => Some(((destination, (x, y)), rx)),
-                _ => None,
-            }
-        }
-    })
 }
 
 struct Computer {
@@ -118,15 +107,13 @@ impl Computer {
             match op {
                 1 => *self.at(3) = *self.at(1) + *self.at(2),
                 2 => *self.at(3) = *self.at(1) * *self.at(2),
-                3 => match self.input.try_recv() {
-                    Ok(input) => {
-                        *self.at(1) = input;
-                    }
-                    Err(mpsc::error::TryRecvError::Empty) => {
+                3 => match self.input.next().now_or_never() {
+                    Some(Some(input)) => *self.at(1) = input,
+                    None => {
                         *self.at(1) = -1;
                         tokio::time::delay_for(time::Duration::from_millis(1)).await;
                     }
-                    Err(e) => return Err(e.into()),
+                    _ => unreachable!(),
                 },
                 4 => {
                     let output = *self.at(1);
