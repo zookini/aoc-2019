@@ -9,24 +9,39 @@ use tokio;
 async fn main() -> Result<()> {
     let image = Computer::parse("23.txt")?;
 
-    let (nics, mut io): (Vec<_>, Vec<_>) = (0..50)
+    let (nio, mut rio): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
             let (input, output) = (mpsc::channel(10), mpsc::channel(3));
-            let nic = Computer::new(image.clone(), input.1, output.0);
-
-            (nic, (output.1, input.0))
+            ((nin(input.1), output.0), (output.1, input.0))
         })
         .unzip();
 
-    for (i, mut nic) in nics.into_iter().enumerate() {
-        io[i].1.send(i as i64).await.unwrap();
+    for (i, (input, output)) in nio.into_iter().enumerate() {
+        let mut computer = Computer::new(image.clone());
+        rio[i].1.send(i as i64).await?;
 
         tokio::spawn(async move {
-            nic.run().await.unwrap();
+            computer.run(input, output).await.unwrap();
         });
     }
 
-    Ok(println!("{}", router(io).await?))
+    Ok(println!("{}", router(rio).await?))
+}
+
+fn nin(rx: Receiver<i64>) -> impl Stream<Item = i64> {
+    stream::unfold(rx, |mut rx| {
+        async {
+            match rx.next().now_or_never() {
+                Some(Some(input)) => Some((input, rx)),
+                None => {
+                    tokio::time::delay_for(time::Duration::from_millis(1)).await;
+                    Some((-1, rx))
+                }
+                _ => None,
+            }
+        }
+        .boxed()
+    })
 }
 
 async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
@@ -74,20 +89,16 @@ struct Computer {
     base: usize,
     mem: Vec<i64>,
     ip: usize,
-    input: Receiver<i64>,
-    output: Sender<i64>,
 }
 
 impl Computer {
-    fn new(mut mem: Vec<i64>, input: Receiver<i64>, output: Sender<i64>) -> Self {
+    fn new(mut mem: Vec<i64>) -> Self {
         mem.resize(10 * 1024, 0);
 
         Self {
             base: 0,
             mem,
             ip: 0,
-            input,
-            output,
         }
     }
 
@@ -100,25 +111,20 @@ impl Computer {
 
     const OP_SIZE: &'static [usize] = &[0, 4, 4, 2, 2, 3, 3, 4, 4, 2];
 
-    async fn run(&mut self) -> Result<()> {
+    async fn run<I, O, E>(&mut self, mut input: I, mut output: O) -> Result<()>
+    where
+        I: Stream<Item = i64> + Unpin,
+        O: Sink<i64, Error = E> + Unpin,
+        E: std::error::Error + 'static,
+    {
         loop {
             let op = (self.mem[self.ip] % 100) as usize;
 
             match op {
                 1 => *self.at(3) = *self.at(1) + *self.at(2),
                 2 => *self.at(3) = *self.at(1) * *self.at(2),
-                3 => match self.input.next().now_or_never() {
-                    Some(Some(input)) => *self.at(1) = input,
-                    None => {
-                        *self.at(1) = -1;
-                        tokio::time::delay_for(time::Duration::from_millis(1)).await;
-                    }
-                    _ => unreachable!(),
-                },
-                4 => {
-                    let output = *self.at(1);
-                    self.output.send(output).await?;
-                }
+                3 => *self.at(1) = input.next().await.unwrap(),
+                4 => output.send(*self.at(1)).await?,
                 5 => {
                     if *self.at(1) != 0 {
                         self.ip = *self.at(2) as usize;
