@@ -30,28 +30,18 @@ async fn main() -> Result<()> {
 }
 
 async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
+    let (inputs, mut outputs): (Vec<_>, Vec<_>) = io
+        .into_iter()
+        .map(|(i, o)| (Box::pin(messages(i)), o))
+        .unzip();
+
+    let mut inputs = stream::select_all(inputs);
     let mut nat: Option<(i64, i64)> = None;
-    let mut buffers = vec![vec![]; io.len()];
     let mut counts: HashMap<i64, u8> = HashMap::new();
-    let (mut inputs, mut outputs): (Vec<_>, Vec<_>) = io.into_iter().unzip();
 
     loop {
-        let selects = future::select_all(inputs.iter_mut().map(|input| Box::pin(input.recv())));
-
-        match tokio::time::timeout(Duration::from_millis(5), selects).await {
-            Ok((Some(output), index, _)) => {
-                let buffer = &mut buffers[index];
-
-                buffer.push(output);
-
-                if buffer.len() != 3 {
-                    continue;
-                }
-
-                let destination = buffer[0];
-                let packet = (buffer[1], buffer[2]);
-
-                buffer.clear();
+        match tokio::time::timeout(Duration::from_millis(5), inputs.next()).await {
+            Ok(Some((destination, packet))) => {
                 println!("Received packet {:?} for {}", packet, destination);
 
                 if destination == 255 {
@@ -78,6 +68,17 @@ async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
             _ => (),
         }
     }
+}
+
+fn messages(rx: Receiver<i64>) -> impl Stream<Item = (i64, (i64, i64))> {
+    stream::unfold(rx, |mut rx| {
+        async {
+            match (rx.recv().await, rx.recv().await, rx.recv().await) {
+                (Some(destination), Some(x), Some(y)) => Some(((destination, (x, y)), rx)),
+                _ => None,
+            }
+        }
+    })
 }
 
 struct Computer {
