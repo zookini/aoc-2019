@@ -30,6 +30,10 @@ impl Computer {
         }
     }
 
+    pub fn load(filename: &str) -> Result<Self> {
+        Ok(Self::new(Self::parse(filename)?))
+    }
+
     pub fn parse(filename: &str) -> Result<Vec<i64>> {
         Ok(input(filename)?
             .split(',')
