@@ -78,7 +78,11 @@ impl Computer {
                 7 => *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 },
                 8 => *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 },
                 9 => self.base = (self.base as i64 + *self.at(1)) as usize,
-                99 => return Ok(()),
+                99 => {
+                    // Stay alive to prevent input stream dropping on others
+                    tokio::time::delay_for(std::time::Duration::from_millis(1)).await;
+                    return Ok(());
+                }
                 _ => unreachable!(),
             }
 
