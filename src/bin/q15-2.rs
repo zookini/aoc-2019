@@ -1,47 +1,60 @@
 use aoc::*;
+use futures::channel::mpsc::{Receiver, Sender};
+use futures::prelude::*;
+use itertools::iproduct;
+use std::pin::Pin;
 
-fn main() -> Result<()> {
-    let mut world = World {
-        computer: Computer::load("15.txt")?,
-        map: vec![vec![255; 50]; 50],
+#[tokio::main]
+async fn main() -> Result<()> {
+    let (tx, rx, _) = Computer::load("15.txt")?.channelled();
+    let mut grid = vec![vec![255; 50]; 50];
+
+    let mut droid = Droid {
+        tx,
+        rx,
         position: Point::new(25, 25),
-        oxygen: None,
     };
 
-    world.dfs();
-    world.bfs();
-    world.draw();
+    dfs(&mut grid, &mut droid).await;
+    draw(&grid);
 
-    Ok(())
+    Ok(println!("{} minutes", bfs(&mut grid)))
 }
 
-struct World {
-    computer: Computer,
-    map: Vec<Vec<u8>>,
+struct Droid {
+    tx: Sender<i64>,
+    rx: Receiver<i64>,
     position: Point,
-    oxygen: Option<Point>,
 }
 
-impl World {
-    fn dfs(&mut self) {
-        for direction in 1..=4 {
-            let destination = self.position.direction(direction);
+impl Droid {
+    async fn go(&mut self, direction: i64) -> Option<i64> {
+        self.tx.send(direction).await.unwrap();
+        self.rx.next().await
+    }
+}
 
-            if self.map[destination.y][destination.x] != 255 {
+fn dfs<'a>(
+    grid: &'a mut Vec<Vec<u8>>,
+    droid: &'a mut Droid,
+) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+    Box::pin(async move {
+        for direction in 1..=4 {
+            let destination = droid.position.direction(direction);
+
+            if grid[destination.y][destination.x] != 255 {
                 continue;
             }
 
-            if let Some(response) = self.computer.run(&[direction]) {
-                self.map[destination.y][destination.x] = response as u8;
+            if let Some(response) = droid.go(direction).await {
+                grid[destination.y][destination.x] = response as u8;
 
-                match response {
-                    0 => continue,
-                    2 => self.oxygen = Some(destination),
-                    _ => (),
+                if response == 0 {
+                    continue;
                 }
 
-                self.position = destination;
-                self.dfs();
+                droid.position = destination;
+                dfs(grid, droid).await;
 
                 let backtrack = match direction {
                     1 => 2,
@@ -51,56 +64,62 @@ impl World {
                     _ => unreachable!(),
                 };
 
-                self.computer.run(&[backtrack]);
-                self.position = self.position.direction(backtrack);
+                droid.go(backtrack).await;
+                droid.position = droid.position.direction(backtrack);
             }
         }
-    }
+    })
+}
 
-    fn bfs(&mut self) {
-        let mut border = vec![self.oxygen.unwrap()];
+fn bfs(grid: &mut Vec<Vec<u8>>) -> u32 {
+    let oxygen = iproduct!(0..grid[0].len(), 0..grid.len())
+        .find(|&(x, y)| grid[y][x] == 2)
+        .map(|(x, y)| Point::new(x, y))
+        .unwrap();
 
-        for minute in 0.. {
-            if !self.map.iter().any(|row| row.contains(&1)) {
-                println!("Minute {}", minute);
-                break;
-            }
+    let mut border = vec![oxygen];
 
-            let mut next = vec![];
+    for minute in 0.. {
+        if !grid.iter().any(|row| row.contains(&1)) {
+            return minute;
+        }
 
-            for position in &border {
-                for direction in 1..=4 {
-                    let destination = position.direction(direction);
+        let mut next = vec![];
 
-                    if self.map[destination.y][destination.x] == 1 {
-                        self.map[destination.y][destination.x] = 3;
-                        next.push(destination);
-                    }
+        for position in &border {
+            for direction in 1..=4 {
+                let destination = position.direction(direction);
+
+                if grid[destination.y][destination.x] == 1 {
+                    grid[destination.y][destination.x] = 3;
+                    next.push(destination);
                 }
             }
-
-            border = next;
         }
+
+        border = next;
     }
 
-    fn draw(&self) {
-        for row in &self.map {
-            let line: String = row
-                .iter()
-                .map(|b| match b {
-                    0 => '#',
-                    1 => '.',
-                    2 => '*',
-                    3 => 'O',
-                    _ => ' ',
-                })
-                .collect();
+    unreachable!()
+}
 
-            println!("{}", line);
-        }
+fn draw(grid: &Vec<Vec<u8>>) {
+    for row in grid {
+        let line: String = row
+            .iter()
+            .map(|b| match b {
+                0 => '#',
+                1 => '.',
+                2 => '*',
+                _ => ' ',
+            })
+            .collect();
+
+        println!("{}", line);
     }
 }
-#[derive(Clone, Copy, Debug)]
+
+#[derive(Debug)]
 struct Point {
     x: usize,
     y: usize,
@@ -119,83 +138,5 @@ impl Point {
             4 => Self::new(self.x + 1, self.y),
             _ => unreachable!(),
         }
-    }
-}
-
-#[derive(Clone)]
-struct Computer {
-    base: usize,
-    mem: Vec<i64>,
-    ip: usize,
-}
-
-impl Computer {
-    fn load(filename: &str) -> Result<Self> {
-        let mut mem: Vec<i64> = input(filename)?
-            .split(',')
-            .map(|s| s.parse().unwrap())
-            .collect();
-
-        mem.resize(10 * 1024, 0);
-
-        Ok(Computer {
-            base: 0,
-            mem,
-            ip: 0,
-        })
-    }
-
-    const OP_SIZE: &'static [usize] = &[0, 4, 4, 2, 2, 3, 3, 4, 4, 2];
-
-    fn run(&mut self, input: &[i64]) -> Option<i64> {
-        let mut input = input.iter();
-
-        loop {
-            let op = (self.mem[self.ip] % 100) as usize;
-
-            match op {
-                1 => *self.at(3) = *self.at(1) + *self.at(2),
-                2 => *self.at(3) = *self.at(1) * *self.at(2),
-                3 => *self.at(1) = *input.next().unwrap(),
-                4 => {
-                    let output = *self.at(1);
-                    self.ip += Self::OP_SIZE[op];
-                    return Some(output);
-                }
-                5 => {
-                    if *self.at(1) != 0 {
-                        self.ip = *self.at(2) as usize;
-                        continue;
-                    }
-                }
-                6 => {
-                    if *self.at(1) == 0 {
-                        self.ip = *self.at(2) as usize;
-                        continue;
-                    }
-                }
-                7 => *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 },
-                8 => *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 },
-                9 => self.base = (self.base as i64 + *self.at(1)) as usize,
-                99 => return None,
-                _ => unreachable!(),
-            }
-
-            self.ip += Self::OP_SIZE[op];
-        }
-    }
-
-    fn at(&mut self, parameter: usize) -> &mut i64 {
-        let mode = self.mem[self.ip] / 10i64.pow(parameter as u32 + 1) % 10;
-        let parameter = self.ip + parameter;
-
-        let address = match mode {
-            0 => self.mem[parameter] as usize,
-            1 => parameter,
-            2 => (self.base as i64 + self.mem[parameter]) as usize,
-            _ => unreachable!(),
-        };
-
-        &mut self.mem[address]
     }
 }

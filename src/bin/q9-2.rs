@@ -1,5 +1,6 @@
 use aoc::*;
 
-fn main() -> Result<()> {
-    Ok(println!("Run part 1 with input 2"))
+#[tokio::main]
+async fn main() -> Result<()> {
+    Ok(println!("{:?}", Computer::load("9.txt")?.run(vec![2])))
 }
