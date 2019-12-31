@@ -1,10 +1,12 @@
+use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::prelude::*;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
+use tokio::task::JoinHandle;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub fn input(name: &str) -> io::Result<String> {
     let mut s = String::new();
@@ -49,11 +51,22 @@ impl Computer {
         Ok(output)
     }
 
+    pub fn channelled(mut self) -> (Sender<i64>, Receiver<i64>, JoinHandle<Result<()>>) {
+        let (itx, irx) = mpsc::channel(1);
+        let (otx, orx) = mpsc::channel(1);
+
+        (
+            itx,
+            orx,
+            tokio::spawn(async move { self.interact(irx, otx).await }),
+        )
+    }
+
     pub async fn interact<I, O, E>(&mut self, mut input: I, mut output: O) -> Result<()>
     where
         I: Stream<Item = i64> + Unpin,
         O: Sink<i64, Error = E> + Unpin,
-        E: std::error::Error + 'static,
+        E: std::error::Error + 'static + Send + Sync,
     {
         loop {
             let op = (self.mem[self.ip] % 100) as usize;
