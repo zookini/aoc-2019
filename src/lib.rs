@@ -136,8 +136,10 @@ impl Ascii {
         }
     }
 
-    pub fn lines(&mut self) -> impl Stream<Item = String> + '_ {
-        stream::unfold(self, |me| async { me.line().await.map(|s| (s, me)) })
+    pub fn lines(&mut self) -> impl Stream<Item = String> + Unpin + '_ {
+        stream::unfold(self, |me| {
+            async { me.line().await.map(|s| (s, me)) }.boxed()
+        })
     }
 
     pub async fn paragraph(&mut self) -> Option<String> {
