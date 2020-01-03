@@ -117,3 +117,50 @@ impl Computer {
         &mut self.mem[address]
     }
 }
+
+pub struct Ascii {
+    pub tx: Sender<i64>,
+    pub rx: Receiver<i64>,
+}
+
+impl Ascii {
+    pub fn new(tx: Sender<i64>, rx: Receiver<i64>) -> Ascii {
+        Ascii { tx, rx }
+    }
+
+    pub async fn line(&mut self) -> Option<String> {
+        let mut s = String::new();
+
+        loop {
+            match self.rx.next().await {
+                Some(i) if i == 10 => return Some(s),
+                Some(i) => s.push(i as u8 as char),
+                None => return None,
+            }
+        }
+    }
+
+    pub fn lines(&mut self) -> impl Stream<Item = String> + '_ {
+        stream::unfold(self, |me| async { me.line().await.map(|s| (s, me)) })
+    }
+
+    pub async fn paragraph(&mut self) -> Option<String> {
+        let mut s = String::new();
+
+        loop {
+            match self.rx.next().await {
+                Some(i) if s.ends_with('\n') && i == 10 => return Some(s),
+                Some(i) => s.push(i as u8 as char),
+                None => return None,
+            }
+        }
+    }
+
+    pub async fn send(&mut self, s: &str) -> Result<()> {
+        for ch in s.chars().chain(std::iter::once('\n')) {
+            self.tx.send(ch as i64).await?;
+        }
+
+        Ok(())
+    }
+}
