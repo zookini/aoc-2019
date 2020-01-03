@@ -34,7 +34,7 @@ async fn amplify(image: &Computer, phases: Vec<i64>) -> i64 {
                     tx.send(0).await.unwrap();
                 }
 
-                vm.interact(rx, tx).await.unwrap();
+                let _ = vm.interact(rx, tx).await;
             })
         }),
     )
