@@ -1,147 +1,65 @@
 use aoc::*;
-use std::collections::VecDeque;
+use futures::channel::mpsc::{self, Receiver, Sender};
+use futures::prelude::*;
+use std::time;
+use tokio;
 
-fn main() -> Result<()> {
-    let image = Computer::load("23.txt")?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    let image = Computer::parse("23.txt")?;
 
-    let mut nics: Vec<_> = (0..50)
-        .map(|i| {
-            let mut nic = image.clone();
-            nic.input.push_back(i);
-            nic
+    let (nio, mut rio): (Vec<_>, Vec<_>) = (0..50)
+        .map(|_| {
+            let (input, output) = (mpsc::channel(100), mpsc::channel(3));
+            ((nin(input.1), output.0), (output.1, input.0))
         })
-        .collect();
+        .unzip();
 
-    loop {
-        if let Some(y) = step(&mut nics) {
-            println!("{}", y);
-            break;
-        }
+    for (i, (input, output)) in nio.into_iter().enumerate() {
+        let mut computer = Computer::new(image.clone());
+        rio[i].1.send(i as i64).await?;
+
+        tokio::spawn(async move {
+            computer.interact(input, output).await.unwrap();
+        });
     }
 
-    Ok(())
+    Ok(println!("{:?}", router(rio).await))
 }
 
-fn step(nics: &mut [Computer]) -> Option<i64> {
-    for i in 0..nics.len() {
-        if let State::Output(destination) = nics[i].step() {
-            if let (Some(x), Some(y)) = (nics[i].run(), nics[i].run()) {
-                let destination = destination as usize;
-
-                if destination < nics.len() {
-                    nics[destination].send((x, y));
-                } else if destination == 255 {
-                    return Some(y);
+fn nin(rx: Receiver<i64>) -> impl Stream<Item = i64> {
+    stream::unfold(rx, |mut rx| {
+        async {
+            match rx.next().now_or_never() {
+                Some(Some(input)) => Some((input, rx)),
+                None => {
+                    tokio::time::delay_for(time::Duration::from_millis(1)).await;
+                    Some((-1, rx))
                 }
+                _ => None,
             }
+        }
+        .boxed()
+    })
+}
+
+async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
+    let (inputs, mut outputs): (Vec<_>, Vec<_>) = io
+        .into_iter()
+        .map(|(i, o)| (i.chunks(3).map(|v| (v[0], (v[1], v[2]))), o))
+        .unzip();
+
+    let mut inputs = stream::select_all(inputs);
+
+    while let Some((destination, packet)) = inputs.next().await {
+        if destination == 255 {
+            return Ok(packet.1);
+        } else {
+            let output = &mut outputs[destination as usize];
+            output.send(packet.0).await?;
+            output.send(packet.1).await?;
         }
     }
 
-    None
-}
-
-type Packet = (i64, i64);
-
-#[derive(Clone)]
-struct Computer {
-    base: usize,
-    mem: Vec<i64>,
-    ip: usize,
-    input: VecDeque<i64>,
-}
-
-impl Computer {
-    fn load(filename: &str) -> Result<Self> {
-        let mut mem: Vec<i64> = input(filename)?
-            .split(',')
-            .map(|s| s.parse().unwrap())
-            .collect();
-
-        mem.resize(10 * 1024, 0);
-
-        Ok(Computer {
-            base: 0,
-            mem,
-            ip: 0,
-            input: VecDeque::new(),
-        })
-    }
-
-    fn send(&mut self, (x, y): Packet) {
-        self.input.push_back(x);
-        self.input.push_back(y);
-    }
-
-    fn run(&mut self) -> Option<i64> {
-        loop {
-            match self.step() {
-                State::Output(output) => return Some(output),
-                State::Complete => return None,
-                _ => (),
-            }
-        }
-    }
-
-    const OP_SIZE: &'static [usize] = &[0, 4, 4, 2, 2, 3, 3, 4, 4, 2];
-
-    fn step(&mut self) -> State {
-        let op = (self.mem[self.ip] % 100) as usize;
-
-        match op {
-            1 => *self.at(3) = *self.at(1) + *self.at(2),
-            2 => *self.at(3) = *self.at(1) * *self.at(2),
-            3 => {
-                *self.at(1) = self.input.pop_front().unwrap_or(-1);
-                self.ip += Self::OP_SIZE[op];
-                return State::Input;
-            }
-            4 => {
-                let output = *self.at(1);
-                self.ip += Self::OP_SIZE[op];
-                return State::Output(output);
-            }
-            5 => {
-                if *self.at(1) != 0 {
-                    self.ip = *self.at(2) as usize;
-                    return State::Continue;
-                }
-            }
-            6 => {
-                if *self.at(1) == 0 {
-                    self.ip = *self.at(2) as usize;
-                    return State::Continue;
-                }
-            }
-            7 => *self.at(3) = if *self.at(1) < *self.at(2) { 1 } else { 0 },
-            8 => *self.at(3) = if *self.at(1) == *self.at(2) { 1 } else { 0 },
-            9 => self.base = (self.base as i64 + *self.at(1)) as usize,
-            99 => return State::Complete,
-            _ => unreachable!(),
-        }
-
-        self.ip += Self::OP_SIZE[op];
-        State::Continue
-    }
-
-    fn at(&mut self, parameter: usize) -> &mut i64 {
-        let mode = self.mem[self.ip] / 10i64.pow(parameter as u32 + 1) % 10;
-        let parameter = self.ip + parameter;
-
-        let address = match mode {
-            0 => self.mem[parameter] as usize,
-            1 => parameter,
-            2 => (self.base as i64 + self.mem[parameter]) as usize,
-            _ => unreachable!(),
-        };
-
-        &mut self.mem[address]
-    }
-}
-
-#[derive(Eq, PartialEq)]
-enum State {
-    Continue,
-    Input,
-    Output(i64),
-    Complete,
+    unreachable!()
 }
