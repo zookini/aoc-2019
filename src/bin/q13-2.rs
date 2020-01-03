@@ -7,7 +7,7 @@ async fn main() -> Result<()> {
 
     computer.mem[0] = 2;
 
-    let (mut tx, rx, _) = computer.channelled();
+    let (mut tx, rx, _) = computer.spawn();
     let mut updates = rx.chunks(3).map(|v| (v[0], v[1], v[2]));
 
     let mut ball;

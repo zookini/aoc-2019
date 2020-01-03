@@ -51,7 +51,7 @@ impl Computer {
         Ok(output)
     }
 
-    pub fn channelled(mut self) -> (Sender<i64>, Receiver<i64>, JoinHandle<Result<()>>) {
+    pub fn spawn(mut self) -> (Sender<i64>, Receiver<i64>, JoinHandle<Result<()>>) {
         let (itx, irx) = mpsc::channel(1);
         let (otx, orx) = mpsc::channel(1);
 

@@ -8,7 +8,7 @@ async fn main() -> Result<()> {
     let mut computer = Computer::load("17.txt")?;
     computer.mem[0] = 2;
 
-    let (tx, rx, _) = computer.channelled();
+    let (tx, rx, _) = computer.spawn();
     let mut ascii = Ascii::new(tx, rx);
 
     let map = ascii.paragraph().await.unwrap();

@@ -3,7 +3,7 @@ use itertools::iproduct;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (tx, rx, _) = Computer::load("17.txt")?.channelled();
+    let (tx, rx, _) = Computer::load("17.txt")?.spawn();
     let mut ascii = Ascii::new(tx, rx);
 
     let paragraph = ascii.paragraph().await.unwrap();

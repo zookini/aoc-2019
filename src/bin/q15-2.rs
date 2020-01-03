@@ -6,7 +6,7 @@ use std::pin::Pin;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (tx, rx, _) = Computer::load("15.txt")?.channelled();
+    let (tx, rx, _) = Computer::load("15.txt")?.spawn();
     let mut grid = vec![vec![255; 50]; 50];
 
     let mut droid = Droid {

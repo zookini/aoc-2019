@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (mut tx, rx, _) = Computer::load("11.txt")?.channelled();
+    let (mut tx, rx, _) = Computer::load("11.txt")?.spawn();
     let mut moves = rx.chunks(2).map(|v| (v[0], v[1]));
 
     let mut position = (0, 0);

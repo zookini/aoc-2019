@@ -3,7 +3,7 @@ use futures::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (_, rx, _) = Computer::load("13.txt")?.channelled();
+    let (_, rx, _) = Computer::load("13.txt")?.spawn();
     let mut updates = rx.chunks(3);
     let mut histogram = [0u32; 5];
 
