@@ -1,14 +1,12 @@
 use aoc::*;
-use futures::prelude::*;
+use itertools::Itertools;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let (_, rx, _) = Computer::load("13.txt")?.spawn();
-    let mut updates = rx.chunks(3);
     let mut histogram = [0u32; 5];
 
-    while let Some(v) = updates.next().await {
-        histogram[v[2] as usize] += 1;
+    for (_, _, v) in rx.iter().tuples() {
+        histogram[v as usize] += 1;
     }
 
     Ok(println!("{}", histogram[2]))

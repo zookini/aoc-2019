@@ -1,12 +1,10 @@
 use aoc::*;
-use futures::prelude::*;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let (tx, rx, _) = Computer::load("21.txt")?.spawn();
     let mut ascii = Ascii::new(tx, rx);
 
-    println!("{}", ascii.line().await.unwrap());
+    println!("{}", ascii.line().unwrap());
 
     let commands = "NOT A J\n\
                     NOT B T\n\
@@ -20,11 +18,11 @@ async fn main() -> Result<()> {
                     AND T J\n\
                     RUN";
 
-    ascii.send(commands).await?;
+    ascii.send(commands)?;
 
     for _ in 0..3 {
-        println!("{}", ascii.line().await.unwrap());
+        println!("{}", ascii.line().unwrap());
     }
 
-    Ok(println!("{:?}", ascii.rx.next().await))
+    Ok(println!("{}", ascii.rx.recv().unwrap()))
 }

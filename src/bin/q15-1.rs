@@ -1,10 +1,7 @@
 use aoc::*;
-use futures::channel::mpsc::{Receiver, Sender};
-use futures::prelude::*;
-use std::pin::Pin;
+use std::sync::mpsc::{Receiver, Sender};
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let (tx, rx, _) = Computer::load("15.txt")?.spawn();
     let mut grid = vec![vec![255; 50]; 50];
 
@@ -14,7 +11,7 @@ async fn main() -> Result<()> {
         position: Point::new(25, 25),
     };
 
-    let distance = dfs(&mut grid, &mut droid, 1).await;
+    let distance = dfs(&mut grid, &mut droid, 1);
     draw(&mut grid);
 
     Ok(println!("{:?} steps to oxygen", distance))
@@ -27,55 +24,49 @@ struct Droid {
 }
 
 impl Droid {
-    async fn go(&mut self, direction: i64) -> Option<i64> {
-        self.tx.send(direction).await.unwrap();
-        self.rx.next().await
+    fn go(&mut self, direction: i64) -> Option<i64> {
+        self.tx.send(direction).unwrap();
+        self.rx.recv().ok()
     }
 }
 
-fn dfs<'a>(
-    grid: &'a mut Vec<Vec<u8>>,
-    droid: &'a mut Droid,
-    distance: u16,
-) -> Pin<Box<dyn Future<Output = Option<u16>> + 'a>> {
-    Box::pin(async move {
-        for direction in 1..=4 {
-            let destination = droid.position.direction(direction);
+fn dfs(grid: &mut Vec<Vec<u8>>, droid: &mut Droid, distance: u16) -> Option<u16> {
+    for direction in 1..=4 {
+        let destination = droid.position.direction(direction);
 
-            if grid[destination.y][destination.x] != 255 {
-                continue;
-            }
-
-            if let Some(response) = droid.go(direction).await {
-                grid[destination.y][destination.x] = response as u8;
-
-                match response {
-                    0 => continue,
-                    2 => return Some(distance),
-                    _ => (),
-                }
-
-                droid.position = destination;
-
-                if let Some(distance) = dfs(grid, droid, distance + 1).await {
-                    return Some(distance);
-                }
-
-                let backtrack = match direction {
-                    1 => 2,
-                    2 => 1,
-                    3 => 4,
-                    4 => 3,
-                    _ => unreachable!(),
-                };
-
-                droid.go(backtrack).await;
-                droid.position = droid.position.direction(backtrack);
-            }
+        if grid[destination.y][destination.x] != 255 {
+            continue;
         }
 
-        None
-    })
+        if let Some(response) = droid.go(direction) {
+            grid[destination.y][destination.x] = response as u8;
+
+            match response {
+                0 => continue,
+                2 => return Some(distance),
+                _ => (),
+            }
+
+            droid.position = destination;
+
+            if let Some(distance) = dfs(grid, droid, distance + 1) {
+                return Some(distance);
+            }
+
+            let backtrack = match direction {
+                1 => 2,
+                2 => 1,
+                3 => 4,
+                4 => 3,
+                _ => unreachable!(),
+            };
+
+            droid.go(backtrack);
+            droid.position = droid.position.direction(backtrack);
+        }
+    }
+
+    None
 }
 
 fn draw(grid: &Vec<Vec<u8>>) {

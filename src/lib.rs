@@ -1,10 +1,10 @@
-use futures::channel::mpsc::{self, Receiver, Sender};
-use futures::prelude::*;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
+use std::iter;
 use std::path::Path;
-use tokio::task::JoinHandle;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread::{self, JoinHandle};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -47,35 +47,32 @@ impl Computer {
 
     pub fn run(&mut self, input: impl IntoIterator<Item = i64>) -> Result<Vec<i64>> {
         let mut output = vec![];
-        futures::executor::block_on(self.interact(stream::iter(input), &mut output))?;
+        self.interact(input, &mut output)?;
         Ok(output)
     }
 
     pub fn spawn(mut self) -> (Sender<i64>, Receiver<i64>, JoinHandle<Result<()>>) {
-        let (itx, irx) = mpsc::channel(1);
-        let (otx, orx) = mpsc::channel(1);
+        let (itx, irx) = mpsc::channel();
+        let (otx, orx) = mpsc::channel();
 
-        (
-            itx,
-            orx,
-            tokio::spawn(async move { self.interact(irx, otx).await }),
-        )
+        (itx, orx, thread::spawn(move || self.interact(irx, otx)))
     }
 
-    pub async fn interact<I, O, E>(&mut self, mut input: I, mut output: O) -> Result<()>
+    pub fn interact<I, O>(&mut self, input: I, mut output: O) -> Result<()>
     where
-        I: Stream<Item = i64> + Unpin,
-        O: Sink<i64, Error = E> + Unpin,
-        E: std::error::Error + 'static + Send + Sync,
+        I: IntoIterator<Item = i64>,
+        O: Sink<i64>,
     {
+        let mut input = input.into_iter();
+
         loop {
             let op = (self.mem[self.ip] % 100) as usize;
 
             match op {
                 1 => *self.at(3) = *self.at(1) + *self.at(2),
                 2 => *self.at(3) = *self.at(1) * *self.at(2),
-                3 => *self.at(1) = input.next().await.ok_or("No more input")?,
-                4 => output.send(*self.at(1)).await?,
+                3 => *self.at(1) = input.next().ok_or("No more input")?,
+                4 => output.send(*self.at(1))?,
                 5 => {
                     if *self.at(1) != 0 {
                         self.ip = *self.at(2) as usize;
@@ -124,41 +121,55 @@ impl Ascii {
         Ascii { tx, rx }
     }
 
-    pub async fn line(&mut self) -> Option<String> {
+    pub fn line(&mut self) -> Option<String> {
         let mut s = String::new();
 
         loop {
-            match self.rx.next().await {
-                Some(i) if i == 10 => return Some(s),
-                Some(i) => s.push(i as u8 as char),
-                None => return None,
+            match self.rx.recv() {
+                Ok(i) if i == 10 => return Some(s),
+                Ok(i) => s.push(i as u8 as char),
+                Err(_) => return None,
             }
         }
     }
 
-    pub fn lines(&mut self) -> impl Stream<Item = String> + Unpin + '_ {
-        stream::unfold(self, |me| {
-            async { me.line().await.map(|s| (s, me)) }.boxed()
-        })
+    pub fn lines(&mut self) -> impl Iterator<Item = String> + '_ {
+        iter::from_fn(move || self.line())
     }
 
-    pub async fn paragraph(&mut self) -> Option<String> {
+    pub fn paragraph(&mut self) -> Option<String> {
         let mut s = String::new();
 
         loop {
-            match self.rx.next().await {
-                Some(i) if s.ends_with('\n') && i == 10 => return Some(s),
-                Some(i) => s.push(i as u8 as char),
-                None => return None,
+            match self.rx.recv() {
+                Ok(i) if s.ends_with('\n') && i == 10 => return Some(s),
+                Ok(i) => s.push(i as u8 as char),
+                Err(_) => return None,
             }
         }
     }
 
-    pub async fn send(&mut self, s: &str) -> Result<()> {
+    pub fn send(&mut self, s: &str) -> Result<()> {
         for ch in s.chars().chain(std::iter::once('\n')) {
-            self.tx.send(ch as i64).await?;
+            self.tx.send(ch as i64)?;
         }
 
         Ok(())
+    }
+}
+
+pub trait Sink<Item> {
+    fn send(&mut self, item: Item) -> Result<()>;
+}
+
+impl<T> Sink<T> for &mut Vec<T> {
+    fn send(&mut self, item: T) -> Result<()> {
+        Ok(self.push(item))
+    }
+}
+
+impl<T: 'static + Send + Sync> Sink<T> for Sender<T> {
+    fn send(&mut self, item: T) -> Result<()> {
+        Ok(Sender::send(self, item)?)
     }
 }

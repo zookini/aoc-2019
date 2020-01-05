@@ -1,26 +1,22 @@
 use aoc::*;
-use futures::prelude::*;
+use itertools::Itertools;
 use std::collections::HashMap;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let (mut tx, rx, _) = Computer::load("11.txt")?.spawn();
-    let mut moves = rx.chunks(2).map(|v| (v[0], v[1]));
+fn main() -> Result<()> {
+    let (tx, rx, _) = Computer::load("11.txt")?.spawn();
 
     let mut position = (0, 0);
     let mut facing = 0;
     let mut painted = HashMap::new();
 
-    loop {
-        tx.send(*painted.get(&position).unwrap_or(&0)).await?;
+    tx.send(*painted.get(&position).unwrap_or(&0))?;
 
-        if let Some((colour, direction)) = moves.next().await {
-            painted.insert(position, colour);
-            facing = turn(facing, direction);
-            position = step(position, facing);
-        } else {
-            break;
-        }
+    for (colour, direction) in rx.iter().tuples() {
+        painted.insert(position, colour);
+        facing = turn(facing, direction);
+        position = step(position, facing);
+
+        tx.send(*painted.get(&position).unwrap_or(&0))?;
     }
 
     Ok(println!("{}", painted.len()))

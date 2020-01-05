@@ -1,28 +1,22 @@
 use aoc::*;
-use futures::prelude::*;
+use itertools::Itertools;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let (mut tx, rx, _) = Computer::load("11.txt")?.spawn();
-    let mut moves = rx.chunks(2).map(|v| (v[0], v[1]));
+fn main() -> Result<()> {
+    let (tx, rx, _) = Computer::load("11.txt")?.spawn();
 
     let mut position = (0, 0);
     let mut facing = 0;
     let mut canvas = vec![vec![0; 50]; 6];
 
     canvas[0][0] = 1;
+    tx.send(canvas[position.1 as usize][position.0 as usize])?;
 
-    loop {
-        tx.send(canvas[position.1 as usize][position.0 as usize])
-            .await?;
+    for (colour, direction) in rx.iter().tuples() {
+        canvas[position.1 as usize][position.0 as usize] = colour;
+        facing = turn(facing, direction);
+        position = step(position, facing);
 
-        if let Some((colour, direction)) = moves.next().await {
-            canvas[position.1 as usize][position.0 as usize] = colour;
-            facing = turn(facing, direction);
-            position = step(position, facing);
-        } else {
-            break;
-        }
+        tx.send(canvas[position.1 as usize][position.0 as usize])?;
     }
 
     for row in canvas {

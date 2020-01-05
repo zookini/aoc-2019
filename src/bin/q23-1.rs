@@ -1,65 +1,75 @@
 use aoc::*;
-use futures::channel::mpsc::{self, Receiver, Sender};
-use futures::prelude::*;
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::thread;
 use std::time;
-use tokio;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let image = Computer::parse("23.txt")?;
+    let rio = mpsc::channel();
+    let (txs, rxs): (Vec<_>, Vec<_>) = (0..50).map(|_| mpsc::channel()).unzip();
 
-    let (nio, mut rio): (Vec<_>, Vec<_>) = (0..50)
-        .map(|_| {
-            let (input, output) = (mpsc::channel(100), mpsc::channel(3));
-            ((nin(input.1), output.0), (output.1, input.0))
-        })
-        .unzip();
-
-    for (i, (input, output)) in nio.into_iter().enumerate() {
+    for (i, rx) in rxs.into_iter().enumerate() {
         let mut computer = Computer::new(image.clone());
-        rio[i].1.send(i as i64).await?;
+        let adapter = Adapter::new(rio.0.clone());
 
-        tokio::spawn(async move {
-            computer.interact(input, output).await.unwrap();
-        });
+        txs[i].send(i as i64)?;
+        thread::spawn(move || computer.interact(nin(rx), adapter).unwrap());
     }
 
-    Ok(println!("{:?}", router(rio).await))
+    Ok(println!("{:?}", router(rio.1, txs)))
 }
 
-fn nin(rx: Receiver<i64>) -> impl Stream<Item = i64> {
-    stream::unfold(rx, |mut rx| {
-        async {
-            match rx.next().now_or_never() {
-                Some(Some(input)) => Some((input, rx)),
-                None => {
-                    tokio::time::delay_for(time::Duration::from_millis(1)).await;
-                    Some((-1, rx))
-                }
-                _ => None,
-            }
+fn nin(rx: Receiver<i64>) -> impl Iterator<Item = i64> {
+    std::iter::from_fn(move || match rx.try_recv() {
+        Ok(input) => Some(input),
+        Err(TryRecvError::Disconnected) => None,
+        Err(TryRecvError::Empty) => {
+            thread::sleep(time::Duration::from_millis(1));
+            Some(-1)
         }
-        .boxed()
     })
 }
 
-async fn router(io: Vec<(Receiver<i64>, Sender<i64>)>) -> Result<i64> {
-    let (inputs, mut outputs): (Vec<_>, Vec<_>) = io
-        .into_iter()
-        .map(|(i, o)| (i.chunks(3).map(|v| (v[0], (v[1], v[2]))), o))
-        .unzip();
-
-    let mut inputs = stream::select_all(inputs);
-
-    while let Some((destination, packet)) = inputs.next().await {
+fn router(
+    messages: impl IntoIterator<Item = (usize, (i64, i64))>,
+    mut nics: Vec<Sender<i64>>,
+) -> Result<i64> {
+    for (destination, (x, y)) in messages {
         if destination == 255 {
-            return Ok(packet.1);
+            return Ok(y);
         } else {
-            let output = &mut outputs[destination as usize];
-            output.send(packet.0).await?;
-            output.send(packet.1).await?;
+            let nic = &mut nics[destination];
+            nic.send(x)?;
+            nic.send(y)?;
         }
     }
 
     unreachable!()
+}
+
+struct Adapter {
+    buffer: Vec<i64>,
+    router: Sender<(usize, (i64, i64))>,
+}
+
+impl Adapter {
+    fn new(router: Sender<(usize, (i64, i64))>) -> Self {
+        Adapter {
+            buffer: Vec::with_capacity(3),
+            router,
+        }
+    }
+}
+
+impl Sink<i64> for Adapter {
+    fn send(&mut self, item: i64) -> Result<()> {
+        self.buffer.push(item);
+
+        if let &[destination, x, y] = &self.buffer[..] {
+            self.router.send((destination as usize, (x, y)))?;
+            self.buffer.clear()
+        }
+
+        Ok(())
+    }
 }

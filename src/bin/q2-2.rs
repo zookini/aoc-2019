@@ -1,8 +1,6 @@
 use aoc::*;
-use tokio;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let mem = Computer::parse("2.txt")?;
 
     for noun in 0..100 {

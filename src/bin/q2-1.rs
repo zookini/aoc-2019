@@ -1,8 +1,6 @@
 use aoc::*;
-use tokio;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let mut computer = Computer::load("2.txt")?;
 
     computer.mem[1] = 12;

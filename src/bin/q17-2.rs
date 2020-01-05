@@ -1,17 +1,15 @@
 use aoc::*;
-use futures::prelude::*;
 use itertools::izip;
 use std::iter;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let mut computer = Computer::load("17.txt")?;
     computer.mem[0] = 2;
 
     let (tx, rx, _) = computer.spawn();
     let mut ascii = Ascii::new(tx, rx);
 
-    let map = ascii.paragraph().await.unwrap();
+    let map = ascii.paragraph().unwrap();
     println!("{}\n", map);
 
     let map: Vec<_> = map.lines().map(|line| line.as_bytes()).collect();
@@ -19,7 +17,7 @@ async fn main() -> Result<()> {
     let moves: Vec<_> = iter::from_fn(|| robot.step(&map)).collect();
 
     println!("{:?}\n", moves);
-    println!("{}", ascii.line().await.unwrap()); // Main
+    println!("{}", ascii.line().unwrap()); // Main
 
     // Manually computed routines from moves
 
@@ -30,14 +28,14 @@ async fn main() -> Result<()> {
         "R,10,L,12,L,12",
         "n",
     ] {
-        ascii.send(input).await?;
-        println!("{}", ascii.line().await.unwrap());
+        ascii.send(input)?;
+        println!("{}", ascii.line().unwrap());
     }
 
-    let map = ascii.paragraph().await.unwrap();
+    let map = ascii.paragraph().unwrap();
 
     println!("{}\n", map);
-    println!("{:?}", ascii.rx.collect::<Vec<_>>().await);
+    println!("{:?}", ascii.rx.iter().collect::<Vec<_>>());
     Ok(())
 }
 
