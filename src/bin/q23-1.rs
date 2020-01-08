@@ -2,15 +2,11 @@ use aoc::*;
 use std::collections::VecDeque;
 
 fn main() -> Result<()> {
-    let image = Computer::load("23.txt")?;
+    let mut nics = vec![Computer::load("23.txt")?; 50];
 
-    let mut nics: Vec<_> = (0..50)
-        .map(|i| {
-            let mut nic = image.clone();
-            nic.input.push_back(i);
-            nic
-        })
-        .collect();
+    for (i, nic) in nics.iter_mut().enumerate() {
+        nic.input.push_back(i as i64)
+    }
 
     loop {
         if let Some(y) = step(&mut nics) {

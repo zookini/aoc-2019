@@ -1,27 +1,22 @@
 use aoc::*;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 fn main() -> Result<()> {
-    let image = Computer::load("23.txt")?;
+    let mut nics = vec![Computer::load("23.txt")?; 50];
 
-    let mut nics: Vec<_> = (0..50)
-        .map(|i| {
-            let mut nic = image.clone();
-            nic.input.push_back(i);
-            nic
-        })
-        .collect();
+    for (i, nic) in nics.iter_mut().enumerate() {
+        nic.input.push_back(i as i64)
+    }
 
     let mut nat = None;
-    let mut counts: HashMap<i64, u8> = HashMap::new();
+    let mut seen = HashSet::new();
 
     loop {
         if let Some(y) = step(&mut nics, &mut nat) {
-            let count = counts.entry(y).or_insert(1);
-            if *count >= 2 {
+            if seen.contains(&y) {
                 return Ok(println!("Found duplicate {:?}", y));
             } else {
-                *count += 1;
+                seen.insert(y);
             }
         }
     }
